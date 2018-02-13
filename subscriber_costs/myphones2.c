@@ -1,0 +1,1352 @@
+#define _XOPEN_SOURCE 500
+ 
+#include <stdlib.h>
+#include <stdio.h>
+#include <limits.h>
+#include <math.h>
+#include <string.h>
+#include "myRecordDef.h"
+
+
+struct sep_list_s {
+  char *key;               
+  char *name;
+  char *lname;
+  char *town;
+  char *xreos;
+  struct sep_list_s *next;
+};
+ 
+
+
+ 
+struct hashtable_s {                   
+  int size;
+  struct sep_list_s **table;
+};
+  
+
+
+
+ 
+struct ind_list_s {
+  char *town;
+  struct ind_list_s *next, *down;
+  struct sep_list_s *p;
+};
+
+
+typedef struct sep_list_s sep_list_t;
+typedef struct hashtable_s hashtable_t;
+typedef struct ind_list_s ind_list_t;
+
+
+
+
+ 
+ 
+
+
+
+
+
+
+hashtable_t *hashtable_create( int size)
+{
+ 
+  int i;
+  hashtable_t *ht = NULL;
+ 
+  if( size < 1 ){
+   return NULL;  
+  }
+  
+  if(( ht = malloc( sizeof( hashtable_t ))) == NULL) {
+    return NULL;
+  }
+
+  if(( ht->table = malloc( sizeof( sep_list_t * ) * size )) == NULL) {
+    return NULL;
+  }
+
+  for( i = 0; i < size; i++ ) {
+    ht->table[i] = NULL;
+  }
+   
+  ht->size = size;
+ 
+  return ht;
+  
+}
+ 
+
+
+
+
+int hash_fun( hashtable_t *ht, char *key )
+{
+
+  unsigned long int val;
+
+  val=atol(key);
+  return val % ht->size;
+}
+
+
+
+
+sep_list_t *ht_entry(char *key, char *name, char *lname, char *town, char *xreos )
+{
+
+  sep_list_t *entry;
+ 
+  if((entry = malloc( sizeof( sep_list_t )))== NULL)
+  {
+	return NULL;
+  }
+  
+  entry->next = NULL;
+  entry->key = strdup( key );
+  entry->name = strdup( name );
+  entry->lname = strdup( lname);
+  entry->town = strdup( town );
+  entry->xreos = strdup( xreos );
+
+  return entry;
+}
+
+
+
+
+ind_list_t *lookup_town(ind_list_t *head,char *town)
+{
+    ind_list_t *current=head;
+    
+    while(current != NULL){
+        
+      if (strcmp(town, current->town) == 0){
+			 return current;
+	  }else{
+         current = current->down;
+	  }
+    }
+    
+    return NULL;
+}
+ 
+
+
+ind_list_t *new_look(ind_list_t *head)
+{
+   ind_list_t *kathetos=head;
+   
+   if(kathetos->down==NULL){
+      return NULL;
+   }else{
+      do{
+          kathetos=kathetos->down;
+        }while (kathetos ==NULL);
+   }
+   
+    return kathetos;
+}
+
+
+ 
+
+int set_entry( hashtable_t *ht,ind_list_t *head, char *key, char *name, char *lname, char *town, char *xreos )
+{
+    sep_list_t *entry = NULL;
+    sep_list_t *temp =NULL;
+    sep_list_t *temp2 =NULL;
+    ind_list_t *indexs_list;
+    ind_list_t *rev_list;
+    ind_list_t *return_list;
+    ind_list_t *kreturn_list;
+    int bucket = 0;
+    bucket = hash_fun( ht, key );
+    temp = ht->table[bucket];
+    
+    
+    if ((indexs_list = malloc(sizeof(ind_list_t)))==NULL){
+		 return 1;
+    }
+    if ((rev_list = malloc(sizeof(ind_list_t)))==NULL){
+		 return 1;
+    }
+
+	while(temp != NULL && temp->key != NULL && strcmp(key, temp->key ) > 0)
+	{
+       temp2= temp;
+       temp = temp->next;
+    }
+    
+    if(temp!= NULL && temp->key!= NULL && strcmp(key, temp->key )== 0)
+	{
+         return 2;
+ 
+    }else{
+    
+        entry = ht_entry(key, name,lname,town,xreos);
+        return_list = lookup_town(head,town);
+        kreturn_list =new_look(head);
+        if(return_list==NULL){
+
+           if(kreturn_list==NULL){
+             rev_list->town=strdup(town);
+             rev_list->down=head->down;
+             head->down=rev_list;
+             rev_list->next=NULL;
+             rev_list->p=entry;
+             rev_list->down=NULL;
+           }else{
+             rev_list->town=strdup(town);
+             rev_list->down=kreturn_list->down;
+             kreturn_list->down=rev_list;
+             rev_list->next=NULL;
+             rev_list->p=entry;
+    
+          }
+        }else{
+            indexs_list->next=return_list->next;
+            return_list->next=indexs_list;
+            indexs_list->down=NULL;
+            indexs_list->town=strdup(town);
+            indexs_list->p=entry;
+        }
+
+        if(temp==ht->table[bucket])
+		{
+          entry->next=temp;
+          ht->table[bucket]=entry;
+
+        }else if(temp==NULL )
+		{
+          temp2->next=entry;
+        }else{
+          entry->next=temp;
+          temp2->next=entry;
+        }
+    }
+    
+       return 0;
+}
+
+
+
+
+
+
+
+ 
+int delete_entry(hashtable_t *ht,ind_list_t *head, char *key)
+{
+   int bucket=0;
+   struct sep_list_s *node, *prevnode=NULL;
+   struct ind_list_s *tlista=NULL, *alista=NULL, *temp=NULL, *prenod=NULL, *abovnod=NULL;
+   
+   bucket=hash_fun(ht,key);
+   node=ht->table[bucket];
+   
+   while( node != NULL && node->key != NULL && strcmp( key, node->key ) > 0 ) {
+   node = node->next;
+   }
+ 
+  if( node == NULL  || strcmp( key, node->key ) != 0 ) {
+        return 1;
+ 
+       } else {
+           tlista = lookup_town(head,node->town);
+           alista =tlista;
+           
+       }
+  
+    node=ht->table[bucket];
+   
+   if (tlista == NULL){
+return 1;
+}else{
+
+     if(alista->next==NULL){
+         abovnod=head;
+         temp=head;
+        while(abovnod->down !=NULL && abovnod->down != alista){
+          abovnod=abovnod->down;
+         }    
+        temp=(abovnod->down)->down;
+         abovnod->down=temp;
+         alista->p=NULL;
+         while(temp->down!=NULL){
+         temp=temp->down; 
+          }   
+    
+    
+      
+      
+
+     }else{
+      while(tlista){
+         if(!strcmp((tlista->p)->key, key)) {
+            tlista->p=NULL;
+            if(prenod){
+              prenod->next=tlista->next;
+	    }else{ 
+               abovnod=head->down;
+        while(abovnod->down != NULL && abovnod->down != tlista){
+        abovnod = abovnod->down;
+        }
+        abovnod->down=alista->next;
+alista->next=abovnod->down; 
+	        free(tlista);
+                
+	   
+            }
+         } 
+               
+                
+                prenod=tlista;
+		tlista=tlista->next;
+     }
+   }  
+}
+   while(node) {
+		if(!strcmp(node->key, key)) {
+			free(node->key);
+			if(prevnode) prevnode->next=node->next;
+			else ht->table[bucket]=node->next;
+			free(node);
+			return 0;
+		}
+		prevnode=node;
+		node=node->next;
+	}
+
+    
+	return 1;
+}
+    
+
+
+double max_get(hashtable_t *ht,int size)
+{
+    sep_list_t *entry=NULL;
+    double max=0;
+
+	for(int i=0;i<=size;i++)
+	{
+       double t=0;
+       entry=ht->table[i];
+       
+       while(entry!= NULL && entry->key!= NULL)
+	   {
+           t=strtod(entry->key,NULL);
+           
+           if(t>max)
+		   {
+             max=t;
+           }else{
+             max=max;
+           }
+           
+          entry = entry->next;
+        }
+     }
+
+   return max;
+}
+
+
+
+double min_get(hashtable_t *ht,int size)
+{
+    sep_list_t *entry=NULL;
+    double min=0;
+    
+    for(int i=0;i<=size;i++)
+	{
+      double t=0;
+      entry=ht->table[i];
+
+	   while(entry!= NULL && entry->key!= NULL)
+	   {
+          t=strtod(entry->key,NULL);
+
+		  if(t<min||min==0)
+		  {
+             min=t;
+          }else{
+             min=min;
+          }
+          
+        entry = entry->next;
+       }
+     }
+     
+   return min;
+}
+
+
+
+/*population town */
+
+int population(ind_list_t *head,char *town)
+{
+   ind_list_t *neo;
+   int count=0;
+
+   neo = lookup_town(head,town);
+
+   if (neo== NULL)
+   {
+     return 0;
+   }else{
+
+      while(neo!=NULL)
+	  {
+        count=count+1;
+
+        neo=neo->next;
+      }
+   }
+   
+   return count;
+}
+
+/* To synoliko poso pou xrwstoun sthn polh */
+double sum(ind_list_t *head,char *town)
+{
+   ind_list_t *neo;
+   double synolo=0;
+   double syn_xreos=0;
+
+   neo = lookup_town(head,town);
+   
+   if (neo== NULL)
+   {
+     return 0;
+   }else{
+
+     while(neo!=NULL)
+	 {
+        synolo=strtod((neo->p)->xreos,NULL);
+        syn_xreos=syn_xreos+synolo;
+
+        neo = neo->next;
+     }
+   }
+   
+    return syn_xreos;
+}
+
+
+
+int town_spenders(ind_list_t *head,char *town,int size,int n)
+{
+  ind_list_t *spenders;
+  int xreos[size];
+  double p_number[size];
+  int a;
+  double b;
+  
+  spenders =lookup_town(head,town);
+  
+  if(spenders == NULL || n>size)
+  {
+     return 1;
+  }else{
+     int i=0;
+     
+     while(spenders!=NULL)
+	 {
+       double p_num=0.0;
+       int xr=0;
+
+       xr=strtod((spenders->p)->xreos,NULL);
+       p_num=strtod((spenders->p)->key,NULL);
+
+       xreos[i]=xr;
+       p_number[i]=p_num;
+       i++;
+       spenders =spenders->next;
+     }
+
+     for (i = 0; i < size; i++)
+     {
+
+        for (int j = i + 1; j < size; j++)
+        {
+
+            if (xreos[i] < xreos[j])
+            {
+                a= xreos[i];
+                xreos[i]=xreos[j];
+                xreos[j]=a;
+                
+                b=p_number[i];
+                p_number[i]=p_number[j];
+                p_number[j]=b;
+                 
+            }
+         }
+
+     }
+
+	  for (int i = 0; i < n; i++)
+	  {
+        printf("%11.0f %d\n",p_number[i],xreos[i]);
+      }
+ }
+ 
+  return 0;
+}
+
+
+int top_pop(hashtable_t *ht,ind_list_t *head,int size,int k)
+{
+  double p_number[size];
+  int counter[size];
+  int i=0;
+  double b;
+  ind_list_t *neo;
+  ind_list_t *horizontal;
+  neo=head->down;
+  int a;
+  int count=0;
+  double p_num=0;
+  
+  if(neo==NULL || k>size-1)
+  {
+     return 1;
+  }else{
+
+    while(neo!=NULL)
+	{
+       horizontal = lookup_town(head,neo->town);
+     
+      if(horizontal== NULL)
+	  {
+         return 1;
+      }else{
+      
+        p_num=strtod((horizontal->p)->key,NULL);
+        p_number[i]=p_num;
+        
+          while(horizontal!=NULL)
+		  {
+            count=count+1;
+
+            horizontal = horizontal->next;
+          }
+      }
+      
+       counter[i]=count;
+       count=0;
+       p_num=0;
+       i++;
+     
+       neo=neo->down;
+
+    }
+  }
+    
+  for(i= 0; i < size; i++)
+  {
+      for (int j = i + 1; j < size; j++)
+      {
+
+           if (counter[i] < counter[j])
+           {
+               a=counter[i];
+               counter[i]=counter[j];
+               counter[j]=a;
+                
+               b=p_number[i];
+               p_number[i]=p_number[j];
+               p_number[j]=b;
+                 
+           }
+
+       }
+   }
+
+   for(int i = 0; i < k; i++)
+   {
+     char vout[100];
+     sprintf(vout,"%10.0f",p_number[i]);
+     int bucket = 0;
+     sep_list_t *entry=NULL;
+     char *p;
+     
+     p=malloc(sizeof(char) * k);
+     bucket=hash_fun( ht,vout);
+     entry = ht->table[bucket];
+
+     while(entry!= NULL && entry->key != NULL && strcmp(vout,entry->key ) > 0)
+	 {
+       entry = entry->next;
+     }
+ 
+
+     if(entry==NULL  || strcmp(vout,entry->key) != 0)
+	 {
+        return 1;
+     }else{
+        strcpy(p,entry->town );
+     }
+     
+       printf(" %s: %d\n",p,counter[i]);
+       free(p);
+   }
+   
+   return 0;
+}
+
+
+
+
+int top_spender(hashtable_t *ht,ind_list_t *head,int size)
+{
+   int n=0;
+   n=size;
+   char *arithmos;
+   char *poleis;
+   double p_number[n];
+   int xreos[n];
+   int i=0;
+   double b;
+   ind_list_t *neo;
+   ind_list_t *horizontal;
+   neo=head->down;
+   int a;
+   int max=0;
+   int num;
+   double p_num=0;
+  
+   while(neo!=NULL)
+   {
+     horizontal=lookup_town(head,neo->town);
+     
+     while(horizontal!=NULL)
+	 {
+        num=0;
+        num=strtod((horizontal->p)->xreos,NULL);
+       
+        if(num>max)
+		{
+           max=num;
+           arithmos= (horizontal->p)->key;
+        }else{
+           max=max;
+        }
+
+        horizontal = horizontal->next;
+     }
+
+      xreos[i]=max;
+      p_num=strtod(arithmos,NULL);
+      p_number[i]=p_num;
+      max=0;
+      p_num=0;
+      i++;
+    
+    neo=neo->down;
+
+   }
+    
+
+   for(i = 0; i < n; i++)
+   {
+
+      for(int j = i + 1; j < n; j++)
+      {
+
+            if(xreos[i] < xreos[j])
+            {
+
+                a=xreos[i];
+                xreos[i]=xreos[j];
+                xreos[j]=a;
+                
+                b=p_number[i];
+                p_number[i]=p_number[j];
+                p_number[j]=b;
+                 
+            }
+
+        }
+
+    }
+
+    for(int i = 0; i < n; i++)
+	{
+      char vout[100];
+      sprintf(vout,"%10.0f",p_number[i]);
+      int bucket = 0;
+      sep_list_t *entry=NULL;
+      char *p;
+      p=malloc(sizeof(char) * n);
+      bucket=hash_fun(ht,vout);
+      entry = ht->table[bucket];
+      
+      while(entry!=NULL && entry->key!=NULL && strcmp(vout,entry->key ) > 0)
+	  {
+         entry = entry->next;
+      }
+ 
+      if(entry==NULL || entry->key==NULL || strcmp(vout,entry->key) != 0)
+	  {
+         return 1;
+      }else{
+         strcpy(p,entry->town );
+      }
+      
+       printf(" %s %10.0f %d\n",p,p_number[i],xreos[i]);
+       free(p);
+    }
+	 
+   return 0;
+}
+
+
+
+char *get_entry(hashtable_t *ht, char *key)
+{
+   sep_list_t *entry=NULL;
+   char *p;
+   int bucket = 0;
+   bucket=hash_fun(ht,key);
+   entry=ht->table[bucket];
+   
+   while(entry!= NULL && entry->key!=NULL && strcmp(key,entry->key) > 0)
+   {
+      entry = entry->next;
+   }
+ 
+   if(entry==NULL || entry->key==NULL || strcmp(key,entry->key)!= 0)
+   {
+      return NULL;
+   }else{
+
+      strcpy(p,entry->name );
+      strcat(p, " ");
+      strcat (p,entry->lname);
+      strcat(p, " ");
+      strcat(p, entry->town);
+      strcat(p, " ");
+      strcat(p, entry->xreos);
+
+      return p;
+   }
+   
+}
+
+
+char *list_get(ind_list_t *head,char *town)
+{
+  ind_list_t *neo;
+  char *p;
+  neo = lookup_town(head,town);
+  
+  if(neo == NULL)
+  {
+     return NULL;
+  }else{
+
+    while(neo!=NULL)
+	{
+      strcat(p,(neo->p)->key);
+      strcat(p, " ");
+      
+     neo = neo->next;
+    }
+  }
+  
+  return p;
+}
+
+
+void free_domes(hashtable_t *ht, ind_list_t *head)
+{
+  sep_list_t *list1;
+  ind_list_t *list2;
+  sep_list_t *temp;
+  int i=0;
+  ind_list_t *temp2;
+  list2=head->down; 
+  ind_list_t *temp3;
+  ind_list_t *temp4;
+
+ while(list2!=NULL){
+  temp2=list2;
+  temp4=list2->next;
+    while(temp4!=NULL){
+     temp3=temp4;
+     temp4=temp4->next;
+     free(temp3);
+     
+    }
+    list2=list2->down;
+    free(temp2);
+    
+
+  }
+  free(head);
+  
+
+  
+  if(ht==NULL){
+   return;
+  }
+
+  for(i=0; i<ht->size; i++){
+    list1=ht->table[i];
+    
+    while(list1!=NULL){
+     temp =list1;
+     list1=list1->next;
+     free(temp);
+     
+     
+     }
+
+     free(ht->table);
+     free(ht);
+   }  
+} 
+
+
+
+
+
+int num_town(ind_list_t *head)
+{
+  ind_list_t *neo;
+  neo=head;
+  int count=0;
+  
+  if(neo == NULL)
+  {
+    return 0;
+  }else{
+
+   while(neo!=NULL)
+   {
+     count=count+1;
+     
+     neo=neo->down;
+   }
+  }
+  
+ return count;
+}
+  
+
+int check_prime(int a)
+{
+   int c;
+ 
+   for(c = 2 ; c <= a-1 ; c++)
+   { 
+      if( a%c == 0 ){
+	    return 0;
+	  }
+   }
+   if( c == a ){
+      return 1;
+   }
+   
+}
+
+
+
+int main( int argc, char **argv ) {
+  FILE *fpb;
+  FILE *ptr;
+  MyRecord rec;
+  long lSize;
+   int numOfrecords;
+  int i;
+  char en;
+  hashtable_t *ht;
+  char *a="arxh";
+  ind_list_t *head=NULL;
+  head = malloc(sizeof(ind_list_t));
+  if (head == NULL) {
+    return 1;
+  }
+    head->next = NULL;
+    head->down = NULL;
+    head->p =NULL;
+    head->town=a;
+    int size;
+    char phone[100];
+    char fname[100];
+    char stoixeia[100];
+    char buf[1000];
+    char deiktis[2];
+    char meg[5];
+    char db[3];
+    char dokima[2];
+    char *p;
+
+     if(argc!=7) {
+      	printf("Correct syntax is: %s -l DataFile -o OperationsFile -c config-file\n", argv[0]);
+      	return(1);
+   	 }
+   	 
+   	 fpb = fopen (argv[2],"rb");
+     if (fpb==NULL) {
+        printf("%s\n",argv[2]);
+      	printf("Cannot open binary file\n");
+      	return 1;
+   	 }
+   	 
+   	 fseek (fpb , 0 , SEEK_END);
+     lSize = ftell (fpb);
+     rewind (fpb);
+     numOfrecords = (int) lSize/sizeof(rec);
+     int n,result=0;
+        n= 2*numOfrecords;
+        if(result==1){
+
+        }else{
+         while(result!=1){
+           result = check_prime(n);
+            n=n-1;
+         }
+            n=n+1;
+		}
+          printf("%d\n",n);
+          
+          ht=hashtable_create(numOfrecords);
+
+        for (i=0; i<numOfrecords ; i++) {
+      	fread(&rec, sizeof(rec), 1, fpb);
+
+        char array[5];
+        sprintf(array, "%3.2f", rec.invoice);
+
+        set_entry( ht,head, rec.phone, rec.FirstName, rec.LastName, rec.Town, array);
+        printf("Phone number %s added successfully\n",rec.phone);
+        }
+        
+        ptr = fopen (argv[4],"r");
+
+        if (ptr==NULL) {
+          printf("%s\n",argv[4]);
+      	  printf("Cannot open file\n");
+      	  return 1;
+        }
+        int k;
+        char z;
+        
+   	    while(k!=EOF  && en!='g'){
+          while(fgets(buf,1000, ptr)!=NULL){
+// fgets( stoixeia, 100, stdin );
+strncpy(deiktis, buf,2);
+strncpy(dokima, buf,2);
+strncpy(meg, buf,4);
+strncpy(db, buf,3);
+deiktis[2]='\0';
+
+if(deiktis[0]=='i'){
+
+char args[6][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+while (buf[a] != '\0') {
+        if (buf[a] == ' '||buf[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = buf[a++];
+        
+    }
+    args[index][i] = '\0';
+ 
+
+if(set_entry( ht, head, args[1], args[2],args[3],args[4],args[5] )==2){
+  printf("Record not added: Duplicate phone number exists.\n");
+}else{
+printf("Phone number %s added successfully\n",args[1]);
+}
+}else if (deiktis[0]=='q'){
+char args[2][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+while (buf[a] != '\0') {
+        if (buf[a] == ' '||buf[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = buf[a++];
+        
+    }
+    args[index][i] = '\0';
+
+if(get_entry(ht, args[1])!=NULL){
+printf("%s %s\n",args[1], get_entry(ht, args[1]));
+}else{
+printf("Phone number not found\n");
+}
+}else if(deiktis[0]=='p'){
+       char args[2][15];
+       int a = 0;
+    int i = 0;
+    int index = 0;
+while (buf[a] != '\0') {
+        if (buf[a] == ' '||buf[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = buf[a++];
+        
+    }
+    args[index][i] = '\0';
+     if(population(head,args[1])!=0){
+printf(" %s:  %d  \n ",args[1], population(head,args[1]));
+}else{
+printf("Town not found\n");
+}
+
+}else if (dokima[0]=='e'){
+free_domes(ht,head);
+en='g';
+
+}else if(deiktis[0]=='t'){
+    char args[2][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+    int si=0;
+    int k=0;
+    while (buf[a] != '\0') {
+        if (buf[a] == ' '||buf[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = buf[a++];
+        
+    }
+    args[index][i] = '\0';
+    si=num_town(head);
+     k=atoi(args[1]);
+   if(k>0){
+    if(top_pop(ht,head,si,k)==1){
+       printf("No towns found\n");
+     }
+   }
+
+
+
+
+}else if(deiktis[0]=='s'){
+       char args[2][15];
+       int a = 0;
+    int i = 0;
+    int index = 0;
+while (buf[a] != '\0') {
+        if (buf[a] == ' '||buf[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = buf[a++];
+        
+    }
+    args[index][i] = '\0';
+     if(sum(head,args[1])!=0){
+printf("%s:  %5.1lf \n ",args[1], sum(head,args[1]));
+}else{
+printf("No records found for given town.\n");
+}
+
+
+
+
+}else if(deiktis[0]=='d'){
+     char args[2][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+while (buf[a] != '\0') {
+        if (buf[a] == ' '||buf[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = buf[a++];
+        
+    }
+    args[index][i] = '\0';
+     if(delete_entry(ht,head,args[1])==0){
+      printf("Phone number %s deleted successfully\n",args[1]);
+     }else{
+      printf("Phone number not found\n");
+     }
+  }else if(meg[0]=='f'&& meg[1]=='t'&& meg[2]=='s'){
+  int n =num_town(head);
+  if(top_spender(ht,head,n)==1){
+     printf("No top spenders found.\n");
+    }
+  }else if(db[0]=='f'&& db[1]=='t'){ 
+    char args[3][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+    int size=0;
+    int n=0;
+while (buf[a] != '\0') {
+        if (buf[a] == ' '||buf[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = buf[a++];
+        
+    }
+    args[index][i] = '\0';
+    size=population(head,args[1]);
+    n=atoi(args[2]);
+    if(town_spenders(head,args[1],size,n)==1){
+      printf("No records found for given town.\n");
+     }
+
+ }else if(meg[0]=='m'&& meg[1]=='a'&& meg[2]=='x'){
+
+  printf("Max %10.0lf\n",max_get(ht,numOfrecords));
+
+ }else if(meg[0]=='m'&&meg[1]=='i'&& meg[2]=='n'){
+
+  printf("Min %10.0lf\n",min_get(ht,numOfrecords));
+
+ }
+}
+
+fgets( stoixeia, 100, stdin );
+ strncpy(deiktis, stoixeia,2);
+ strncpy(dokima, stoixeia,2);
+ strncpy(meg, stoixeia,4);
+ strncpy(db, stoixeia,3);
+ deiktis[2]='\0';
+
+ if(deiktis[0]=='i'){
+
+    char args[6][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+    while (stoixeia[a] != '\0') {
+        if (stoixeia[a] == ' '||stoixeia[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = stoixeia[a++];
+
+    }
+    args[index][i] = '\0';
+
+
+if(set_entry( ht, head, args[1], args[2],args[3],args[4],args[5] )==2){
+  printf("Record not added: Duplicate phone number exists.\n");
+}else{
+printf("Phone number %s added successfully\n",args[1]);
+}
+}else if (deiktis[0]=='q'){
+char args[2][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+while (stoixeia[a] != '\0') {
+        if (stoixeia[a] == ' '||stoixeia[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = stoixeia[a++];
+
+    }
+    args[index][i] = '\0';
+
+if(get_entry(ht, args[1])!=NULL){
+printf("%s %s\n",args[1], get_entry(ht, args[1]));
+}else{
+printf("Phone number not found\n");
+}
+
+
+}else if(deiktis[0]=='p'){
+       char args[2][15];
+       int a = 0;
+    int i = 0;
+    int index = 0;
+while (stoixeia[a] != '\0') {
+        if (stoixeia[a] == ' '||stoixeia[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = stoixeia[a++];
+
+    }
+    args[index][i] = '\0';
+     if(population(head,args[1])!=0){
+printf(" %s:  %d  \n ",args[1], population(head,args[1]));
+}else{
+printf("Town not found\n");
+}
+
+}else if (dokima[0]=='e'){
+free_domes(ht,head);
+en='g';
+
+}else if(deiktis[0]=='t'){
+    char args[2][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+    int si=0;
+    int k=0;
+    while (stoixeia[a] != '\0') {
+        if (stoixeia[a] == ' '||stoixeia[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = stoixeia[a++];
+
+    }
+    args[index][i] = '\0';
+    si=num_town(head);
+     k=atoi(args[1]);
+    if(top_pop(ht,head,si,k)==1){
+       printf("No towns found\n");
+     }
+
+
+
+
+
+}else if(deiktis[0]=='s'){
+       char args[2][15];
+       int a = 0;
+    int i = 0;
+    int index = 0;
+while (stoixeia[a] != '\0') {
+        if (stoixeia[a] == ' '||stoixeia[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = stoixeia[a++];
+
+    }
+    args[index][i] = '\0';
+     if(sum(head,args[1])!=0){
+printf("%s:  %5.1lf \n ",args[1], sum(head,args[1]));
+}else{
+printf("No records found for given town.\n");
+}
+
+
+
+
+}else if(deiktis[0]=='d'){
+     char args[2][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+while (stoixeia[a] != '\0') {
+        if (stoixeia[a] == ' '||stoixeia[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = stoixeia[a++];
+
+    }
+    args[index][i] = '\0';
+     if(delete_entry(ht,head,args[1])==0){
+      printf("Phone number %s deleted successfully\n",args[1]);
+     }else{
+      printf("Phone number not found\n");
+     }
+     
+  }else if(meg[0]=='f'&& meg[1]=='t'&& meg[2]=='s'){
+  int n =num_town(head);
+  if(top_spender(ht,head,n)==1){
+     printf("No top spenders found.\n");
+    }
+
+  }else if(db[0]=='f'&& db[1]=='t'){
+    char args[3][15];
+    int a = 0;
+    int i = 0;
+    int index = 0;
+    int size=0;
+    int n=0;
+while (stoixeia[a] != '\0') {
+        if (stoixeia[a] == ' '||stoixeia[a]=='\n') {
+            args[index][i] = '\0';
+            i = 0;
+            a++;
+            index++;
+        }                       // SPACE detected
+
+        args[index][i++] = stoixeia[a++];
+
+    }
+    args[index][i] = '\0';
+    size=population(head,args[1]);
+    n=atoi(args[2]);
+    if(town_spenders(head,args[1],size,n)==1){
+      printf("No records found for given town.\n");
+     }
+
+ }else if(meg[0]=='m'&& meg[1]=='a'&& meg[2]=='x'){
+
+  printf("Max %10.0lf\n",max_get(ht,numOfrecords));
+
+ }else if(meg[0]=='m'&&meg[1]=='i'&& meg[2]=='n'){
+
+  printf("Min %10.0lf\n",min_get(ht,numOfrecords));
+
+ }
+
+}
+
+return 0;
+}
